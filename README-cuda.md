@@ -1,4 +1,4 @@
-lding
+# Building
 The Makefile defines what compiler is used. This line  ``` CC = nvcc ``` specifies that we'll use the [NVCC compiler.](http://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/#axzz4fetCWOOG). I don't know how to install CUDA, because I used [paperspace.com](www.paperspace.com), so my machine came with CUDA already installed.
 
 To build it, I just change to the correct directory and run the make command:
