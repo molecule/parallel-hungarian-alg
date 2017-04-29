@@ -1,6 +1,9 @@
 #include "HungarianAlg.h"
+#define NUM_THREADS 256
 
 using namespace std;
+
+__device__ double d_answer;
 
 AssignmentProblemSolver::AssignmentProblemSolver()
 {
@@ -8,6 +11,23 @@ AssignmentProblemSolver::AssignmentProblemSolver()
 
 AssignmentProblemSolver::~AssignmentProblemSolver()
 {
+}
+ 
+//
+//  timer
+//
+double read_timer( )
+{
+    static bool initialized = false;
+    static struct timeval start;
+    struct timeval end;
+    if( !initialized )
+    {   
+        gettimeofday( &start, NULL );
+        initialized = true;
+    }   
+    gettimeofday( &end, NULL );
+    return (end.tv_sec - start.tv_sec) + 1.0e-6 * (end.tv_usec - start.tv_usec);
 }
 
 double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector<int>& Assignment,TMethod Method)
@@ -51,6 +71,24 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
 // --------------------------------------------------------------------------
 // Computes the optimal assignment (minimum overall costs) using Munkres algorithm.
 // --------------------------------------------------------------------------
+
+
+ __global__ void findMinRow_gpu(double* distMatrix, int endIndex, int n) {
+    d_answer = 13;
+    // todo: Figure out how to tell each thread waht its index is...
+    // each thread needs to go over an entire row of the distMatrix
+    // I think I also need to pass in the size of each row.
+    // which is..the number of columns?
+    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    if (tid >= n) return;
+    
+    d_answer = distMatrix[tid];
+    for(int i = tid; i < endIndex; i++) {
+        if (distMatrix[i] < d_answer) { d_answer = distMatrix[i]; }	
+    }
+    
+}
+
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
 {
     printf("assignment optimal.\n");
@@ -86,6 +124,8 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     nOfElements   = nOfRows * nOfColumns;
     // Memory allocation
     distMatrix    = (double *)malloc(nOfElements * sizeof(double));
+    double * d_distMatrix;
+    cudaMalloc((void **) &d_distMatrix, nOfElements * sizeof(double));
     // Pointer to last element
     distMatrixEnd = distMatrix + nOfElements;
 
@@ -107,6 +147,16 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     primeMatrix    = (bool *)calloc(nOfElements, sizeof(bool));
     newStarMatrix  = (bool *)calloc(nOfElements, sizeof(bool)); /* used in step4 */
 
+    cudaMemcpy(d_distMatrix, distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
+    printf("copied distMatrix to GPU\n");
+    //int blks = (nOfElements + NUM_THREADS - 1) / NUM_THREADS;
+    int blks = nOfRows;
+    findMinRow_gpu <<< blks, NUM_THREADS >>> (d_distMatrix, nOfRows, nOfElements);
+    typeof(d_answer) answer;
+    cudaMemcpyFromSymbol(&answer, d_answer, sizeof(answer), 0, cudaMemcpyDeviceToHost);
+    printf("answer: %f\n", answer);
+    //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
+    
     /* preliminary steps */
     if(nOfRows <= nOfColumns)
     {
@@ -514,8 +564,10 @@ int main(void)
     AssignmentProblemSolver APS;
     vector<int> Assignment;
     printf("Solving the random matrix...\n");
-
+    double solve_time = read_timer( );
     cout << APS.Solve(Cost,Assignment) << endl;
+    solve_time = read_timer( ) - solve_time;
+    printf("Total solve_time: %g\n", solve_time);
 
     // Output the result
     for(int x=0; x<N; x++)

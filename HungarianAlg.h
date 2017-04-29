@@ -6,6 +6,7 @@
 #include <cfloat>
 #include <stdio.h>
 #include <cuda.h>
+#include <sys/time.h>
 
 // http://community.topcoder.com/tc?module=Static&d1=tutorials&d2=hungarianAlgorithm
 // https://www.topcoder.com/community/data-science/data-science-tutorials/assignment-problem-and-hungarian-algorithm/
@@ -33,6 +34,10 @@ private:
 	// --------------------------------------------------------------------------
 	void assignmentsuboptimal2(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns);
 public:
+        //
+	//  timing routines
+	//
+	double read_timer( );
 	enum TMethod { optimal, many_forbidden_assignments, without_forbidden_assignments };
 	AssignmentProblemSolver();
 	~AssignmentProblemSolver();
