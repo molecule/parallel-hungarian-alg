@@ -93,7 +93,7 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
     int endIndex = n;
     
     d_rowAnswer = distMatrix[tid];
-    for(int i = tid; i < endIndex; i+blockDim.x) {
+    for(int i = tid; i < endIndex; i += blockDim.x) {
         if (distMatrix[i] < d_rowAnswer) { d_rowAnswer = distMatrix[i]; }	
     }
     printf("tid: %d, endIndex: %d, d_rowAnswer: %f\n", tid, endIndex, d_rowAnswer);
@@ -148,7 +148,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
             cout << "All matrix elements have to be non-negative." << endl;
         }
         distMatrix[row] = value;
-        printf("distMatrix[%d]: %f\n", row, value);
+        //printf("distMatrix[%d]: %f\n", row, value);
     }
 
     // Memory allocation
@@ -164,7 +164,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     //int blks = nOfRows;
     int blks = 1;
     findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, nOfElements);
-    //findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, nOfElements);
+    findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, nOfElements);
     cudaDeviceSynchronize(); // GPU doesn't block CPU thread
 
     typeof(d_colAnswer) colAnswer;
