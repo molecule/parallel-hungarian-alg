@@ -73,19 +73,21 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
 // --------------------------------------------------------------------------
 
 
- __global__ void findMinRow_gpu(double* distMatrix, int endIndex, int n) {
+ __global__ void findMinCol_gpu(double* distMatrix, int n) {
     d_answer = 13;
     // todo: Figure out how to tell each thread waht its index is...
     // each thread needs to go over an entire row of the distMatrix
     // I think I also need to pass in the size of each row.
     // which is..the number of columns?
-    int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    int tid = threadIdx.x * blockDim.x;
     if (tid >= n) return;
+    int endIndex = tid + blockDim.x;
     
     d_answer = distMatrix[tid];
     for(int i = tid; i < endIndex; i++) {
         if (distMatrix[i] < d_answer) { d_answer = distMatrix[i]; }	
     }
+    printf("tid: %d, endIndex: %d, d_answer: %f\n", tid, endIndex, d_answer);
     
 }
 
@@ -150,8 +152,11 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     cudaMemcpy(d_distMatrix, distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
     printf("copied distMatrix to GPU\n");
     //int blks = (nOfElements + NUM_THREADS - 1) / NUM_THREADS;
-    int blks = nOfRows;
-    findMinRow_gpu <<< blks, NUM_THREADS >>> (d_distMatrix, nOfRows, nOfElements);
+    //int blks = nOfRows;
+    int blks = 1;
+    findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, nOfElements);
+    cudaDeviceSynchronize(); // GPU doesn't block CPU thread
+
     typeof(d_answer) answer;
     cudaMemcpyFromSymbol(&answer, d_answer, sizeof(answer), 0, cudaMemcpyDeviceToHost);
     printf("answer: %f\n", answer);
@@ -544,7 +549,7 @@ int main(void)
 
     // Matrix size
     int N=8; // tracks
-    int M=9; // detects
+    int M=8; // detects
     // Random numbers generator initialization
     srand (time(NULL));
     // Distance matrix N-th track to M-th detect.
