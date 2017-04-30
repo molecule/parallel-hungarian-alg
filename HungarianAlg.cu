@@ -3,7 +3,8 @@
 
 using namespace std;
 
-__device__ double d_answer;
+__device__ double d_rowAnswer;
+__device__ double d_colAnswer;
 
 AssignmentProblemSolver::AssignmentProblemSolver()
 {
@@ -74,22 +75,29 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
 
 
  __global__ void findMinCol_gpu(double* distMatrix, int n) {
-    d_answer = 13;
-    // todo: Figure out how to tell each thread waht its index is...
-    // each thread needs to go over an entire row of the distMatrix
-    // I think I also need to pass in the size of each row.
-    // which is..the number of columns?
     int tid = threadIdx.x * blockDim.x;
     if (tid >= n) return;
     int endIndex = tid + blockDim.x;
     
-    d_answer = distMatrix[tid];
+    d_colAnswer = distMatrix[tid];
     for(int i = tid; i < endIndex; i++) {
-        if (distMatrix[i] < d_answer) { d_answer = distMatrix[i]; }	
+        if (distMatrix[i] < d_colAnswer) { d_colAnswer = distMatrix[i]; }	
     }
-    printf("tid: %d, endIndex: %d, d_answer: %f\n", tid, endIndex, d_answer);
+    printf("tid: %d, endIndex: %d, d_colAnswer: %f\n", tid, endIndex, d_colAnswer);
     
 }
+
+ __global__ void findMinRow_gpu(double* distMatrix, int n) {
+    int tid = threadIdx.x;
+    if (tid >= n) return;
+    int endIndex = n;
+    
+    d_rowAnswer = distMatrix[tid];
+    for(int i = tid; i < endIndex; i+blockDim.x) {
+        if (distMatrix[i] < d_rowAnswer) { d_rowAnswer = distMatrix[i]; }	
+    }
+    printf("tid: %d, endIndex: %d, d_rowAnswer: %f\n", tid, endIndex, d_rowAnswer);
+} 
 
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
 {
@@ -140,6 +148,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
             cout << "All matrix elements have to be non-negative." << endl;
         }
         distMatrix[row] = value;
+        printf("distMatrix[%d]: %f\n", row, value);
     }
 
     // Memory allocation
@@ -155,11 +164,16 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     //int blks = nOfRows;
     int blks = 1;
     findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, nOfElements);
+    //findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, nOfElements);
     cudaDeviceSynchronize(); // GPU doesn't block CPU thread
 
-    typeof(d_answer) answer;
-    cudaMemcpyFromSymbol(&answer, d_answer, sizeof(answer), 0, cudaMemcpyDeviceToHost);
-    printf("answer: %f\n", answer);
+    typeof(d_colAnswer) colAnswer;
+    cudaMemcpyFromSymbol(&colAnswer, d_colAnswer, sizeof(colAnswer), 0, cudaMemcpyDeviceToHost);
+    printf("colAnswer: %f\n", colAnswer);
+
+    typeof(d_rowAnswer) rowAnswer;
+    cudaMemcpyFromSymbol(&rowAnswer, d_rowAnswer, sizeof(rowAnswer), 0, cudaMemcpyDeviceToHost);
+    printf("rowAnswer: %f\n", rowAnswer);
     //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
     
     /* preliminary steps */
@@ -548,8 +562,8 @@ int main(void)
     cudaThreadSynchronize(); 
 
     // Matrix size
-    int N=8; // tracks
-    int M=8; // detects
+    int N=10; // tracks rows
+    int M=10; // detects columns
     // Random numbers generator initialization
     srand (time(NULL));
     // Distance matrix N-th track to M-th detect.
