@@ -3,8 +3,8 @@
 
 using namespace std;
 
+__device__ double d_columnAnswer;
 __device__ double d_rowAnswer;
-__device__ double d_colAnswer;
 
 AssignmentProblemSolver::AssignmentProblemSolver()
 {
@@ -74,20 +74,21 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
 // --------------------------------------------------------------------------
 
 
- __global__ void findMinCol_gpu(double* distMatrix, int n) {
+ __global__ void findMinCol_gpu(double* distMatrix, double* d_dualVariablesColumn, int n) {
     int tid = threadIdx.x * blockDim.x;
     if (tid >= n) return;
     int endIndex = tid + blockDim.x;
     
-    d_colAnswer = distMatrix[tid];
+    d_columnAnswer = distMatrix[tid];
     for(int i = tid; i < endIndex; i++) {
-        if (distMatrix[i] < d_colAnswer) { d_colAnswer = distMatrix[i]; }	
+        if (distMatrix[i] < d_columnAnswer) { d_columnAnswer = distMatrix[i]; }	
     }
-    printf("tid: %d, endIndex: %d, d_colAnswer: %f\n", tid, endIndex, d_colAnswer);
+    //printf("threadIdx.x: %d, tid: %d, endIndex: %d, d_colAnswer: %f\n", threadIdx.x, tid, endIndex, d_columnAnswer);
+    d_dualVariablesColumn[threadIdx.x] = d_columnAnswer;
     
 }
 
- __global__ void findMinRow_gpu(double* distMatrix, int n) {
+ __global__ void findMinRow_gpu(double* distMatrix, double* d_dualVariablesRow, int n) {
     int tid = threadIdx.x;
     if (tid >= n) return;
     int endIndex = n;
@@ -96,13 +97,16 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
     for(int i = tid; i < endIndex; i += blockDim.x) {
         if (distMatrix[i] < d_rowAnswer) { d_rowAnswer = distMatrix[i]; }	
     }
-    printf("tid: %d, endIndex: %d, d_rowAnswer: %f\n", tid, endIndex, d_rowAnswer);
+    //printf("tid: %d, endIndex: %d, d_rowAnswer: %f\n", tid, endIndex, d_rowAnswer);
+    d_dualVariablesRow[threadIdx.x] = d_rowAnswer;
 } 
 
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
 {
     printf("assignment optimal.\n");
     double *distMatrix;
+    double *dualVariablesRow;
+    double *dualVariablesColumn;
     double *distMatrixTemp;
     double *distMatrixEnd;
     double *columnEnd;
@@ -136,6 +140,14 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     distMatrix    = (double *)malloc(nOfElements * sizeof(double));
     double * d_distMatrix;
     cudaMalloc((void **) &d_distMatrix, nOfElements * sizeof(double));
+
+    dualVariablesRow = (double *)malloc(nOfRows * sizeof(double));
+    double * d_dualVariablesRow;
+    cudaMalloc((void **) &d_dualVariablesRow, nOfRows * sizeof(double));
+    dualVariablesColumn = (double *)malloc(nOfColumns * sizeof(double));
+    double * d_dualVariablesColumn;
+    cudaMalloc((void**) &d_dualVariablesColumn, nOfColumns * sizeof(double));
+    
     // Pointer to last element
     distMatrixEnd = distMatrix + nOfElements;
 
@@ -163,17 +175,20 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     //int blks = (nOfElements + NUM_THREADS - 1) / NUM_THREADS;
     //int blks = nOfRows;
     int blks = 1;
-    findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, nOfElements);
-    findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, nOfElements);
+    findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
+    findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
     cudaDeviceSynchronize(); // GPU doesn't block CPU thread
+    
+    cudaMemcpy(dualVariablesRow, d_dualVariablesRow, nOfRows * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(dualVariablesColumn, d_dualVariablesColumn, nOfColumns * sizeof(double), cudaMemcpyDeviceToHost);
+    
+    for(int i = 0; i < nOfRows; i++) {
+	printf("smallest value in row %d is: %f\n", i, dualVariablesRow[i]);
+    }
+    for(int i = 0; i < nOfColumns; i++) {
+	printf("smallest value in column %d is: %f\n", i, dualVariablesColumn[i]);
+    }
 
-    typeof(d_colAnswer) colAnswer;
-    cudaMemcpyFromSymbol(&colAnswer, d_colAnswer, sizeof(colAnswer), 0, cudaMemcpyDeviceToHost);
-    printf("colAnswer: %f\n", colAnswer);
-
-    typeof(d_rowAnswer) rowAnswer;
-    cudaMemcpyFromSymbol(&rowAnswer, d_rowAnswer, sizeof(rowAnswer), 0, cudaMemcpyDeviceToHost);
-    printf("rowAnswer: %f\n", rowAnswer);
     //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
     
     /* preliminary steps */
