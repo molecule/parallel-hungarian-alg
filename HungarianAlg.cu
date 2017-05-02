@@ -1,5 +1,6 @@
 #include "HungarianAlg.h"
 #define NUM_THREADS 256
+#define DEBUG 0
 
 using namespace std;
 
@@ -31,9 +32,30 @@ double read_timer( )
     return (end.tv_sec - start.tv_sec) + 1.0e-6 * (end.tv_usec - start.tv_usec);
 }
 
+//
+//  command line option processing
+//
+int find_option( int argc, char **argv, const char *option )
+{
+    for( int i = 1; i < argc; i++ )
+        if( strcmp( argv[i], option ) == 0 ) 
+            return i;
+    return -1; 
+}
+
+int read_int( int argc, char **argv, const char *option, int default_value )
+{
+    int iplace = find_option( argc, argv, option );
+    if( iplace >= 0 && iplace < argc-1 )
+        return atoi( argv[iplace+1] );
+    return default_value;
+}
+
 double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector<int>& Assignment,TMethod Method)
 {
-    printf("solve\n");
+    if(DEBUG) {
+        printf("solve\n");
+    }
     int N=DistMatrix.size(); // number of columns (tracks)
     int M=DistMatrix[0].size(); // number of rows (measurements)
 
@@ -103,7 +125,9 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
 
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
 {
-    printf("assignment optimal.\n");
+    if (DEBUG) {
+        printf("assignment optimal.\n");
+    }
     double *distMatrix;
     double *dualVariablesRow;
     double *dualVariablesColumn;
@@ -171,10 +195,11 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     newStarMatrix  = (bool *)calloc(nOfElements, sizeof(bool)); /* used in step4 */
 
     cudaMemcpy(d_distMatrix, distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
-    printf("copied distMatrix to GPU\n");
     //int blks = (nOfElements + NUM_THREADS - 1) / NUM_THREADS;
     //int blks = nOfRows;
     int blks = 1;
+    //nOfRows = 1;
+    //nOfColumns = 1;
     findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
     findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
     cudaDeviceSynchronize(); // GPU doesn't block CPU thread
@@ -182,11 +207,13 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     cudaMemcpy(dualVariablesRow, d_dualVariablesRow, nOfRows * sizeof(double), cudaMemcpyDeviceToHost);
     cudaMemcpy(dualVariablesColumn, d_dualVariablesColumn, nOfColumns * sizeof(double), cudaMemcpyDeviceToHost);
     
+    if (DEBUG) {
     for(int i = 0; i < nOfRows; i++) {
 	printf("smallest value in row %d is: %f\n", i, dualVariablesRow[i]);
     }
     for(int i = 0; i < nOfColumns; i++) {
 	printf("smallest value in column %d is: %f\n", i, dualVariablesColumn[i]);
+    }
     }
 
     //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
@@ -300,7 +327,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::buildassignmentvector(int *assignment, bool *starMatrix, int nOfRows, int nOfColumns)
 {
-    printf("build assignment vector.\n");
+    if (DEBUG) {printf("build assignment vector.\n");}
     int row, col;
     for(row=0; row<nOfRows; row++)
     {
@@ -319,7 +346,7 @@ void AssignmentProblemSolver::buildassignmentvector(int *assignment, bool *starM
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::computeassignmentcost(int *assignment, double *cost, double *distMatrix, int nOfRows)
 {
-    printf("compute assignment cost.\n");
+    if (DEBUG) { printf("compute assignment cost.\n");}
     int row, col;
     for(row=0; row<nOfRows; row++)
     {
@@ -336,7 +363,7 @@ void AssignmentProblemSolver::computeassignmentcost(int *assignment, double *cos
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step2a(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    printf("step 2a\n");
+    if (DEBUG) { printf("step 2a\n"); }
     bool *starMatrixTemp, *columnEnd;
     int col;
     /* cover every column containing a starred zero */
@@ -362,7 +389,7 @@ void AssignmentProblemSolver::step2a(int *assignment, double *distMatrix, bool *
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step2b(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    printf("step 2b\n");
+    if (DEBUG) { printf("step 2b\n");}
     int col, nOfCoveredColumns;
     /* count covered columns */
     nOfCoveredColumns = 0;
@@ -390,7 +417,7 @@ void AssignmentProblemSolver::step2b(int *assignment, double *distMatrix, bool *
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step3(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    printf("step 3\n");
+    if (DEBUG) {printf("step 3\n");}
     bool zerosFound;
     int row, col, starCol;
     zerosFound = true;
@@ -440,7 +467,7 @@ void AssignmentProblemSolver::step3(int *assignment, double *distMatrix, bool *s
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step4(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim, int row, int col)
 {
-    printf("step 4\n");
+    if (DEBUG) { printf("step 4\n");}
     int n, starRow, starCol, primeRow, primeCol;
     int nOfElements = nOfRows*nOfColumns;
     /* generate temporary copy of starMatrix */
@@ -504,7 +531,7 @@ void AssignmentProblemSolver::step4(int *assignment, double *distMatrix, bool *s
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step5(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    printf("step 5\n");
+    if (DEBUG) { printf("step 5\n");}
     double h, value;
     int row, col;
     /* find smallest uncovered element h */
@@ -571,14 +598,18 @@ void AssignmentProblemSolver::assignmentsuboptimal1(int *assignment, double *cos
 // --------------------------------------------------------------------------
 // Usage example
 // --------------------------------------------------------------------------
-int main(void)
+//int main(void)
+int main( int argc, char **argv )
 {
+    int n = read_int( argc, argv, "-n", 10 );
+    int m = read_int( argc, argv, "-m", 10);
+    int print = read_int( argc, argv, "-p", 0);
     // This takes a few seconds to initialize the runtime
     cudaThreadSynchronize(); 
 
     // Matrix size
-    int N=10; // tracks rows
-    int M=10; // detects columns
+    int N=n; // tracks rows
+    int M=m; // detects columns
     // Random numbers generator initialization
     srand (time(NULL));
     // Distance matrix N-th track to M-th detect.
@@ -591,22 +622,25 @@ int main(void)
         for(int j=0; j<M; j++)
         {
             Cost[i][j] = (double)(rand()%1000)/1000.0;
-            std::cout << Cost[i][j] << "\t";
+            if (print) { std::cout << Cost[i][j] << "\t";}
         }
-        std::cout << std::endl;
+        if (print) { std::cout << std::endl;}
     }
     AssignmentProblemSolver APS;
     vector<int> Assignment;
     printf("Solving the random matrix...\n");
     double solve_time = read_timer( );
-    cout << APS.Solve(Cost,Assignment) << endl;
+    double totalCost = APS.Solve(Cost, Assignment);
+    //cout << APS.Solve(Cost,Assignment) << endl;
     solve_time = read_timer( ) - solve_time;
     printf("Total solve_time: %g\n", solve_time);
 
     // Output the result
+    if (print) {
     for(int x=0; x<N; x++)
     {
         std::cout << x << ":" << Assignment[x] << "\t";
+    }
     }
 }
 // --------------------------------------------------------------------------
