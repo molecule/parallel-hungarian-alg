@@ -1,9 +1,10 @@
 #include "HungarianAlg.h"
 #define NUM_THREADS 256
-#define DEBUG 0
 
 using namespace std;
 
+int parallel = 1;
+int DEBUG = 0;
 __device__ double d_columnAnswer;
 __device__ double d_rowAnswer;
 
@@ -200,6 +201,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     int blks = 1;
     //nOfRows = 1;
     //nOfColumns = 1;
+if (parallel) {
     findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
     findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
     cudaDeviceSynchronize(); // GPU doesn't block CPU thread
@@ -215,7 +217,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
 	printf("smallest value in column %d is: %f\n", i, dualVariablesColumn[i]);
     }
     }
-
+}
     //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
     
     /* preliminary steps */
@@ -604,6 +606,8 @@ int main( int argc, char **argv )
     int n = read_int( argc, argv, "-n", 10 );
     int m = read_int( argc, argv, "-m", 10);
     int print = read_int( argc, argv, "-p", 0);
+    parallel = read_int( argc, argv, "-L", 1);
+    DEBUG = read_int( argc, argv, "-d", 0);
     // This takes a few seconds to initialize the runtime
     cudaThreadSynchronize(); 
 
