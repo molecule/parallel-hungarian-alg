@@ -35,6 +35,18 @@ CPU-GPU copy time = 0.000431 seconds
 n = 200, simulation time = 0.070571 seconds
 ```
 
+# Random Helpful CUDA Notes
+## Reading back a scalar from the GPU
+
+```
+__device__ double d_colAnswer;
+...
+typeof(d_colAnswer) colAnswer;
+cudaMemcpyFromSymbol(&colAnswer, d_colAnswer, sizeof(colAnswer), 0, cudaMemcpyDeviceToHost);
+printf("colAnswer: %f\n", colAnswer);
+```
+[Adapted from this StackOverflow post.](http://stackoverflow.com/questions/2619296/how-to-return-a-single-variable-from-a-cuda-kernel-function)
+
 # Debugging
 NVIDIA has created [a version of GDB that works with CUDA.](http://docs.nvidia.com/cuda/cuda-gdb/#axzz4artDaDSe)
 
