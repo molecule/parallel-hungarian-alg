@@ -129,11 +129,10 @@ __global__ void subtractMinElementRow_gpu(double* d_distMatrix, double* d_dualVa
     if (tid >= n) return;
     //int endIndex = n; 
 
-    printf("subtractMinElemRow, tid: %d, minElem: %f, before: %f, after: %f\n", tid, d_dualVariablesRow[threadIdx.x], d_distMatrix[tid], d_distMatrix[tid] - d_dualVariablesRow[threadIdx.x]);
     // Subtract the smallest element in this row from each element in this row.
     int nOfRows = sqrt((float)n);
     int rowIdx = threadIdx.x % nOfRows;
-    printf("rowIdx: %d\n", rowIdx);
+    printf("subtractMinElemRow, tid: %d, minElem: %f, before: %f, after: %f, rowIdx: %d \n", tid, d_dualVariablesRow[rowIdx], d_distMatrix[tid], d_distMatrix[tid] - d_dualVariablesRow[rowIdx], rowIdx);
     d_distMatrix[tid] = d_distMatrix[tid] - d_dualVariablesRow[rowIdx];
 }
 
@@ -218,7 +217,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
         //findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
         findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
         cudaDeviceSynchronize(); // GPU doesn't block CPU thread
-        subtractMinElementRow_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
+        subtractMinElementRow_gpu <<< blks, nOfElements >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
         cudaDeviceSynchronize(); // GPU doesn't block CPU thread
 
         //cudaMemcpy(dualVariablesRow, d_dualVariablesRow, nOfRows * sizeof(double), cudaMemcpyDeviceToHost);
