@@ -5,8 +5,6 @@ using namespace std;
 
 int parallel = 1;
 int DEBUG = 0;
-__device__ double d_columnAnswer;
-__device__ double d_rowAnswer;
 
 AssignmentProblemSolver::AssignmentProblemSolver()
 {
@@ -102,7 +100,7 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
     if (tid >= n) return;
     int endIndex = tid + blockDim.x;
     
-    d_columnAnswer = distMatrix[tid];
+    double d_columnAnswer = distMatrix[threadIdx.x];
     for(int i = tid; i < endIndex; i++) {
         if (distMatrix[i] < d_columnAnswer) { d_columnAnswer = distMatrix[i]; }	
     }
@@ -116,7 +114,7 @@ double AssignmentProblemSolver::Solve(vector<vector<double> >& DistMatrix,vector
     if (tid >= n) return;
     int endIndex = n;
     
-    d_rowAnswer = distMatrix[tid];
+    double d_rowAnswer = distMatrix[tid];
     for(int i = tid; i < endIndex; i += blockDim.x) {
         if (distMatrix[i] < d_rowAnswer) { d_rowAnswer = distMatrix[i]; }	
     }
