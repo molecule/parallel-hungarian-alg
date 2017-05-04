@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cfloat>
 #include <stdio.h>
+#include <math.h>
 #include <cuda.h>
 #include <sys/time.h>
 
