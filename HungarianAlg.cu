@@ -132,8 +132,9 @@ __global__ void subtractMinElementRow_gpu(double* d_distMatrix, double* d_dualVa
     // Subtract the smallest element in this row from each element in this row.
     int nOfRows = sqrt((float)n);
     int rowIdx = threadIdx.x % nOfRows;
-    printf("subtractMinElemRow, tid: %d, minElem: %f, before: %f, after: %f, rowIdx: %d \n", tid, d_dualVariablesRow[rowIdx], d_distMatrix[tid], d_distMatrix[tid] - d_dualVariablesRow[rowIdx], rowIdx);
+    double before = d_distMatrix[tid];
     d_distMatrix[tid] = d_distMatrix[tid] - d_dualVariablesRow[rowIdx];
+    printf("subtractMinElemRow, tid: %d, minElem: %f, bef: %f, aft: %f, rowIdx: %d \n", tid, d_dualVariablesRow[rowIdx], before, d_distMatrix[tid], rowIdx);
 }
 
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
@@ -225,6 +226,9 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
         cudaMemcpy(distMatrix, d_distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
 
         if (DEBUG) {
+            for(int i = 0; i < nOfElements; i++) {
+                printf("distMatrix[%d]: %f\n", i, distMatrix[i]);
+            }
         //    for(int i = 0; i < nOfRows; i++) {
         //        printf("smallest value in row %d is: %f\n", i, dualVariablesRow[i]);
         //    }
@@ -234,6 +238,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
             }
             */
         }
+        return;
     } else {
     /* preliminary steps */
         minDim = nOfRows;
