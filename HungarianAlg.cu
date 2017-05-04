@@ -132,7 +132,6 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     double *dualVariablesColumn;
     double *distMatrixTemp;
     double *distMatrixEnd;
-    double *columnEnd;
     double  value;
     double  minValue;
 
@@ -219,8 +218,8 @@ if (parallel) {
     //compute_forces_gpu <<< blks, NUM_THREADS >>> (d_binned_particles, d_binOffset, n, bpr);
     
     /* preliminary steps */
-    if(nOfRows <= nOfColumns)
-    {
+    //if(nOfRows <= nOfColumns) // assume this is always the case for now.
+    //{
         minDim = nOfRows;
         for(row=0; row<nOfRows; row++)
         {
@@ -261,54 +260,6 @@ if (parallel) {
                 }
             }
         }
-    }
-    else /* if(nOfRows > nOfColumns) */
-    {
-        minDim = nOfColumns;
-        for(col=0; col<nOfColumns; col++)
-        {
-            /* find the smallest element in the column */
-            distMatrixTemp = distMatrix     + nOfRows*col;
-            columnEnd      = distMatrixTemp + nOfRows;
-            minValue = *distMatrixTemp++;
-            while(distMatrixTemp < columnEnd)
-            {
-                value = *distMatrixTemp++;
-                if(value < minValue)
-                {
-                    minValue = value;
-                }
-            }
-            /* subtract the smallest element from each element of the column */
-            distMatrixTemp = distMatrix + nOfRows*col;
-            while(distMatrixTemp < columnEnd)
-            {
-                *distMatrixTemp++ -= minValue;
-            }
-        }
-        /* Steps 1 and 2a */
-        for(col=0; col<nOfColumns; col++)
-        {
-            for(row=0; row<nOfRows; row++)
-            {
-                if(distMatrix[row + nOfRows*col] == 0)
-                {
-                    if(!coveredRows[row])
-                    {
-                        starMatrix[row + nOfRows*col] = true;
-                        coveredColumns[col]           = true;
-                        coveredRows[row]              = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        for(row=0; row<nOfRows; row++)
-        {
-            coveredRows[row] = false;
-        }
-    }
     /* move to step 2b */
     step2b(assignment, distMatrix, starMatrix, newStarMatrix, primeMatrix, coveredColumns, coveredRows, nOfRows, nOfColumns, minDim);
     /* compute cost and remove invalid assignments */
