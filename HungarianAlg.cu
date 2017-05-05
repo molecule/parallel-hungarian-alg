@@ -214,7 +214,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
         int blks = 1;
         //findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
         findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
-        cudaDeviceSynchronize(); // GPU doesn't block CPU thread
+        //cudaDeviceSynchronize(); // GPU doesn't block CPU thread
         subtractMinElementRow_gpu <<< blks, nOfElements >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
         cudaDeviceSynchronize(); // GPU doesn't block CPU thread
 
