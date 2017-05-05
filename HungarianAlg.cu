@@ -7,6 +7,8 @@ int parallel = 1;
 int DEBUG = 0;
 __device__ double d_columnAnswer;
 __device__ double d_rowAnswer;
+int step3Counter = 0;
+int step5Counter = 0;
 
 AssignmentProblemSolver::AssignmentProblemSolver()
 {
@@ -127,14 +129,13 @@ __global__ void findMinRow_gpu(double* d_distMatrix, double* d_dualVariablesRow,
 __global__ void subtractMinElementRow_gpu(double* d_distMatrix, double* d_dualVariablesRow, int n) {
     int tid = threadIdx.x;
     if (tid >= n) return;
-    //int endIndex = n; 
 
     // Subtract the smallest element in this row from each element in this row.
     int nOfRows = sqrt((float)n);
     int rowIdx = threadIdx.x % nOfRows;
     double before = d_distMatrix[tid];
     d_distMatrix[tid] = d_distMatrix[tid] - d_dualVariablesRow[rowIdx];
-    printf("subtractMinElemRow, tid: %d, minElem: %f, bef: %f, aft: %f, rowIdx: %d \n", tid, d_dualVariablesRow[rowIdx], before, d_distMatrix[tid], rowIdx);
+    //printf("subtractMinElemRow, tid: %d, minElem: %f, bef: %f, aft: %f, rowIdx: %d \n", tid, d_dualVariablesRow[rowIdx], before, d_distMatrix[tid], rowIdx);
 }
 
 void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, double *distMatrixIn, int nOfRows, int nOfColumns)
@@ -208,13 +209,9 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
     primeMatrix    = (bool *)calloc(nOfElements, sizeof(bool));
     newStarMatrix  = (bool *)calloc(nOfElements, sizeof(bool)); /* used in step4 */
 
-    cudaMemcpy(d_distMatrix, distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
-    //int blks = (nOfElements + NUM_THREADS - 1) / NUM_THREADS;
-    //int blks = nOfRows;
-    int blks = 1;
-    //nOfRows = 1;
-    //nOfColumns = 1;
     if (parallel) {
+        cudaMemcpy(d_distMatrix, distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
+        int blks = 1;
         //findMinCol_gpu <<< blks, nOfRows >>> (d_distMatrix, d_dualVariablesColumn, nOfElements);
         findMinRow_gpu <<< blks, nOfColumns >>> (d_distMatrix, d_dualVariablesRow, nOfElements);
         cudaDeviceSynchronize(); // GPU doesn't block CPU thread
@@ -226,9 +223,9 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
         cudaMemcpy(distMatrix, d_distMatrix, nOfElements * sizeof(double), cudaMemcpyDeviceToHost);
 
         if (DEBUG) {
-            for(int i = 0; i < nOfElements; i++) {
-                printf("distMatrix[%d]: %f\n", i, distMatrix[i]);
-            }
+        //    for(int i = 0; i < nOfElements; i++) {
+        //        printf("distMatrix[%d]: %f\n", i, distMatrix[i]);
+        //    }
         //    for(int i = 0; i < nOfRows; i++) {
         //        printf("smallest value in row %d is: %f\n", i, dualVariablesRow[i]);
         //    }
@@ -238,10 +235,8 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
             }
             */
         }
-        return;
     } else {
     /* preliminary steps */
-        minDim = nOfRows;
         for(row=0; row<nOfRows; row++)
         {
             /* find the smallest element in the row */
@@ -265,6 +260,8 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
                 distMatrixTemp += nOfRows;
             }
         }
+    } // Do this in parallel and serial version
+        minDim = nOfRows;
         /* Steps 1 and 2a */
         for(row=0; row<nOfRows; row++)
         {
@@ -272,6 +269,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
             {
                 if(distMatrix[row + nOfRows*col] == 0)
                 {
+                    if (DEBUG) { printf("found elements that are zero. distMatrix[%d] = %f\n", row + nOfRows*col, distMatrix[row + nOfRows*col]); }
                     if(!coveredColumns[col])
                     {
                         starMatrix[row + nOfRows*col] = true;
@@ -281,7 +279,6 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
                 }
             }
         }
-    }
     /* move to step 2b */
     step2b(assignment, distMatrix, starMatrix, newStarMatrix, primeMatrix, coveredColumns, coveredRows, nOfRows, nOfColumns, minDim);
     /* compute cost and remove invalid assignments */
@@ -390,7 +387,8 @@ void AssignmentProblemSolver::step2b(int *assignment, double *distMatrix, bool *
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step3(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    if (DEBUG) {printf("step 3\n");}
+    step3Counter++;
+    if (DEBUG) {printf("step 3, counter: %d\n", step3Counter);}
     bool zerosFound;
     int row, col, starCol;
     zerosFound = true;
@@ -403,6 +401,7 @@ void AssignmentProblemSolver::step3(int *assignment, double *distMatrix, bool *s
             {
                 for(row=0; row<nOfRows; row++)
                 {
+                    if (DEBUG) { printf("looked through all the columns, now looking for uncovered rows that are zero. distMatrix[%d] = %f\n", row + nOfRows*col, distMatrix[row + nOfRows*col]);}
                     if((!coveredRows[row]) && (distMatrix[row + nOfRows*col] == 0))
                     {
                         /* prime zero */
@@ -504,7 +503,9 @@ void AssignmentProblemSolver::step4(int *assignment, double *distMatrix, bool *s
 // --------------------------------------------------------------------------
 void AssignmentProblemSolver::step5(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim)
 {
-    if (DEBUG) { printf("step 5\n");}
+    step5Counter++;
+    if (DEBUG) { printf("step 5, counter: %d\n", step5Counter);}
+    //if (DEBUG) { if (step5Counter >= 10) return; }
     double h, value;
     int row, col;
     /* find smallest uncovered element h */
@@ -521,6 +522,7 @@ void AssignmentProblemSolver::step5(int *assignment, double *distMatrix, bool *s
                     if(value < h)
                     {
                         h = value;
+                        if (DEBUG) { printf("uncovered columns, new h: %f\n", h); }
                     }
                 }
             }
@@ -533,6 +535,7 @@ void AssignmentProblemSolver::step5(int *assignment, double *distMatrix, bool *s
         {
             for(col=0; col<nOfColumns; col++)
             {
+                if (DEBUG) { printf("Adding h to each covered row: %d\n", row + nOfRows*col);}
                 distMatrix[row + nOfRows*col] += h;
             }
         }
@@ -544,6 +547,7 @@ void AssignmentProblemSolver::step5(int *assignment, double *distMatrix, bool *s
         {
             for(row=0; row<nOfRows; row++)
             {
+                if (DEBUG) { printf("subtract h from uncovered columns: %d\n", row + nOfRows*col); }
                 distMatrix[row + nOfRows*col] -= h;
             }
         }
@@ -586,7 +590,8 @@ int main( int argc, char **argv )
     int N=n; // tracks rows
     int M=m; // detects columns
     // Random numbers generator initialization
-    srand (time(NULL));
+    //srand (time(NULL));
+    srand(1);
     // Distance matrix N-th track to M-th detect.
     vector< vector<double> > Cost(N,vector<double>(M));
     // Fill matrix with random values
