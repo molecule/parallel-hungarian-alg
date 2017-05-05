@@ -223,7 +223,7 @@ void AssignmentProblemSolver::assignmentoptimal(int *assignment, double *cost, d
 
         //cudaMemcpy(dualVariablesRow, d_dualVariablesRow, nOfRows * sizeof(double), cudaMemcpyDeviceToHost);
         //cudaMemcpy(dualVariablesColumn, d_dualVariablesColumn, nOfColumns * sizeof(double), cudaMemcpyDeviceToHost);
-        cudaMemcpy(distMatrix, d_distMatrix, nOfElements * sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(distMatrix, d_distMatrix, nOfElements * sizeof(double), cudaMemcpyDeviceToHost);
 
         if (DEBUG) {
             for(int i = 0; i < nOfElements; i++) {
